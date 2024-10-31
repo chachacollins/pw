@@ -134,7 +134,7 @@ const MyApp = struct {
     /// Draw our current state
     pub fn draw(self: *MyApp) void {
         if (self.currentScreen == screenPages.Main) {
-            const msg = "Hello, world!";
+            const tittle = "Main Screen";
 
             // Window is a bounded area with a view to the screen. You cannot draw outside of a windows
             // bounds. They are light structures, not intended to be stored.
@@ -149,27 +149,27 @@ const MyApp = struct {
             // be changing that as well
             self.vx.setMouseShape(.default);
 
-            const child = win.child(.{
-                .x_off = (win.width / 2) - 7,
-                .y_off = win.height / 2 + 1,
-                .width = .{ .limit = msg.len },
-                .height = .{ .limit = 1 },
-            });
+            // const child = win.child(.{
+            //     .x_off = (win.width / 2) - 7,
+            //     .y_off = win.height / 2 + 1,
+            //     .width = .{ .limit = tittle.len },
+            //     .height = .{ .limit = 1 },
+            // });
 
             // mouse events are much easier to handle in the draw cycle. Windows have a helper method to
             // determine if the event occurred in the target window. This method returns null if there
             // is no mouse event, or if it occurred outside of the window
-            const style: vaxis.Style = if (child.hasMouse(self.mouse)) |_| blk: {
-                // We handled the mouse event, so set it to null
-                self.mouse = null;
-                self.vx.setMouseShape(.pointer);
-                break :blk .{ .reverse = true };
-            } else .{};
+            // const style: vaxis.Style = if (child.hasMouse(self.mouse)) |_| blk: {
+            //     // We handled the mouse event, so set it to null
+            //     self.mouse = null;
+            //     self.vx.setMouseShape(.pointer);
+            //     break :blk .{ .reverse = true };
+            // } else .{};
 
             // Print a text segment to the screen. This is a helper function which iterates over the
             // text field for graphemes. Alternatively, you can implement your own print functions and
             // use the writeCell API.
-            _ = try child.printSegment(.{ .text = msg, .style = style }, .{});
+            self.vx.setTitle(self.tty.anyWriter(), tittle) catch return;
         }
     }
 };
