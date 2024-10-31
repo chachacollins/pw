@@ -1,3 +1,3 @@
-# libvaxis-starter
+# PostWoman
 
-Starter project for a libvaxis project
+Postman is an app used to test API's. That's all fine and good but the problem is it requires you to have an account for the most basic of functionality. Now, I am too lazy to create an account to use an overglorified curl wrapper so  a few months ago I decided to write my own version of postman but for the terminal. The problem is I wrote it in rust. A language well known for it's ease of use and just overall great developer experience. I am being sarcastic of course. It was actually a pretty painful experience (skill issues I know) which made me give up adding anymore features to the app apart from the very basic testing functionality. This is my attempt to rewrite it in zig  a language which actually has good developer experience. The original rust app is archived but you can still check it out on my github. This was made with zig 0.13.0 so it should compile just fine for this version. I have not tested it for any other version nor will I maintain it for any future zig releases.
