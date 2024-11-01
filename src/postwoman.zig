@@ -52,15 +52,21 @@ pub const MyApp = struct {
     currentScreen: screenPages,
     ///url
     url: ?[]const u8,
+    /// textinput
+    textInput: TextInput,
     pub fn init(allocator: std.mem.Allocator) !MyApp {
+        const vx = try vaxis.init(allocator, .{});
+        const textInput = TextInput.init(allocator, &vx.unicode);
+
         return .{
             .allocator = allocator,
             .should_quit = false,
             .tty = try vaxis.Tty.init(),
-            .vx = try vaxis.init(allocator, .{}),
+            .vx = vx,
             .mouse = null,
             .currentScreen = screenPages.Main,
             .url = null,
+            .textInput = textInput,
         };
     }
 
@@ -70,6 +76,7 @@ pub const MyApp = struct {
         // memory
         self.vx.deinit(self.allocator, self.tty.anyWriter());
         self.tty.deinit();
+        self.textInput.deinit();
     }
 
     pub fn run(self: *MyApp) !void {
@@ -125,14 +132,26 @@ pub const MyApp = struct {
                 // key.matches does some basic matching algorithms. Key matching can be complex in
                 // the presence of kitty keyboard encodings, this will generally be a good approach.
                 // There are other matching functions available for specific purposes, as well
+                switch (self.currentScreen) {
+                    screenPages.Main => {
+                        if (key.matches('g', .{})) {
+                            self.currentScreen = screenPages.Get;
+                        }
+                        if (key.matches('p', .{})) {
+                            self.currentScreen = screenPages.Post;
+                        }
+                    },
+                    screenPages.Get => {
+                        if (key.matches('\n', .{})) {
+                            // self.get();
+                        } else {
+                            try self.textInput.update(.{ .key_press = key });
+                        }
+                    },
+                    else => {},
+                }
                 if (key.matches('c', .{ .ctrl = true })) {
                     self.should_quit = true;
-                }
-                if (key.matches('g', .{}) and self.currentScreen == screenPages.Main) {
-                    self.currentScreen = screenPages.Get;
-                }
-                if (key.matches('p', .{}) and self.currentScreen == screenPages.Main) {
-                    self.currentScreen = screenPages.Post;
                 }
             },
             .mouse => |mouse| self.mouse = mouse,
@@ -189,8 +208,6 @@ pub const MyApp = struct {
         if (self.currentScreen == screenPages.Get) {
             const tittle = "GET SCREEN";
             const msg = "URL: ";
-            var textInput = TextInput.init(self.allocator, &self.vx.unicode);
-            defer textInput.deinit();
 
             // Window is a bounded area with a view to the screen. You cannot draw outside of a windows
             // bounds. They are light structures, not intended to be stored.
@@ -223,7 +240,7 @@ pub const MyApp = struct {
                 .width = .{ .limit = msg.len },
                 .height = .{ .limit = 1 },
             });
-            textInput.draw(textChild);
+            self.textInput.draw(textChild);
             _ = try msgChild.printSegment(.{ .text = msg, .style = .{
                 .fg = vaxis.Color.rgbFromUint(color.gold),
             } }, .{});
