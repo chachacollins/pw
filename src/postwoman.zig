@@ -2,6 +2,7 @@ const std = @import("std");
 const vaxis = @import("vaxis");
 const color = @import("color.zig");
 const TextInput = @import("vaxis").widgets.TextInput;
+const ScrollView = vaxis.widgets.ScrollView;
 /// Set the default panic handler to the vaxis panic_handler. This will clean up the terminal if any
 /// panics occur
 pub const panic = vaxis.panic_handler;
@@ -54,11 +55,14 @@ pub const MyApp = struct {
     url: ?[]const u8,
     /// textinput
     textInput: TextInput,
+    ///scrollView
+    scrollView: ScrollView,
     pub fn init(allocator: std.mem.Allocator) !MyApp {
         const vx = try vaxis.init(allocator, .{});
         const textInput = TextInput.init(allocator, &vx.unicode);
 
         return .{
+            //wtf zls
             .allocator = allocator,
             .should_quit = false,
             .tty = try vaxis.Tty.init(),
@@ -67,6 +71,7 @@ pub const MyApp = struct {
             .currentScreen = screenPages.Main,
             .url = null,
             .textInput = textInput,
+            .scrollView = undefined,
         };
     }
 
@@ -142,8 +147,8 @@ pub const MyApp = struct {
                         }
                     },
                     screenPages.Get => {
-                        if (key.matches('\n', .{})) {
-                            // self.get();
+                        if (key.matches(vaxis.Key.enter, .{})) {
+                            try self.get();
                         } else {
                             try self.textInput.update(.{ .key_press = key });
                         }
@@ -160,6 +165,29 @@ pub const MyApp = struct {
         }
     }
 
+    //get request handler
+    fn get(self: *MyApp) !void {
+        self.url = try self.textInput.toOwnedSlice();
+        if (self.url) |url| {
+            const uri = std.Uri.parse(url) catch |err| {
+                try self.vx.notify(self.tty.anyWriter(), "Uri parsing error", "please check the url");
+                std.debug.print("{}", .{err});
+                return;
+            };
+            var client = std.http.Client{ .allocator = self.allocator };
+            defer client.deinit();
+            const serverHeadBuffer = try self.allocator.alloc(u8, 1024 * 8);
+            defer self.allocator.free(serverHeadBuffer);
+
+            var req = try client.open(.GET, uri, .{ .server_header_buffer = serverHeadBuffer });
+            defer req.deinit();
+            try req.send();
+            try req.finish();
+            try req.wait();
+        } else {
+            try self.vx.notify(self.tty.anyWriter(), "Url missing error", "please check the url");
+        }
+    }
     /// Draw our current state
     pub fn draw(self: *MyApp) void {
         //main screen draws
