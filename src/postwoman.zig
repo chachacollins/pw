@@ -2,7 +2,6 @@ const std = @import("std");
 const vaxis = @import("vaxis");
 const color = @import("color.zig");
 const TextInput = @import("vaxis").widgets.TextInput;
-const TextView = vaxis.widgets.TextView;
 /// Set the default panic handler to the vaxis panic_handler. This will clean up the terminal if any
 /// panics occur
 pub const panic = vaxis.panic_handler;
@@ -57,8 +56,6 @@ pub const MyApp = struct {
     body: []const u8,
     /// textinput
     textInput: TextInput,
-    ///scrollView
-    textView: TextView,
     pub fn init(allocator: std.mem.Allocator) !MyApp {
         const vx = try vaxis.init(allocator, .{});
         const textInput = TextInput.init(allocator, &vx.unicode);
@@ -73,7 +70,6 @@ pub const MyApp = struct {
             .currentScreen = screenPages.Main,
             .url = null,
             .textInput = textInput,
-            .textView = undefined,
             .body = "",
         };
     }
@@ -82,6 +78,9 @@ pub const MyApp = struct {
         // Deinit takes an optional allocator. You can choose to pass an allocator to clean up
         // memory, or pass null if your application is shutting down and let the OS clean up the
         // memory
+        if (self.url) |url| {
+            self.allocator.free(url);
+        }
         self.vx.deinit(self.allocator, self.tty.anyWriter());
         self.tty.deinit();
         self.textInput.deinit();
@@ -152,6 +151,10 @@ pub const MyApp = struct {
                     screenPages.Get => {
                         if (key.matches(vaxis.Key.enter, .{})) {
                             try self.get();
+                        } else if (key.matches(vaxis.Key.escape, .{})) {
+                            self.textInput.clearAndFree();
+                            self.textInput.reset();
+                            self.currentScreen = screenPages.Main;
                         } else {
                             try self.textInput.update(.{ .key_press = key });
                         }
@@ -258,10 +261,10 @@ pub const MyApp = struct {
             });
 
             const reqBodyChild = win.child(.{
-                .x_off = win.width / 2 - 35,
-                .y_off = 0,
-                .width = .{ .limit = 70 },
-                .height = .{ .limit = 70 },
+                .x_off = win.width / 2 - 35 - 35,
+                .y_off = 5,
+                .width = .{ .limit = 175 },
+                .height = .{ .limit = 80 },
                 .border = .{
                     .where = .all,
                     //pls zls
