@@ -2,7 +2,7 @@ const std = @import("std");
 const vaxis = @import("vaxis");
 const color = @import("color.zig");
 const TextInput = @import("vaxis").widgets.TextInput;
-const ScrollView = vaxis.widgets.ScrollView;
+const TextView = vaxis.widgets.TextView;
 /// Set the default panic handler to the vaxis panic_handler. This will clean up the terminal if any
 /// panics occur
 pub const panic = vaxis.panic_handler;
@@ -53,10 +53,12 @@ pub const MyApp = struct {
     currentScreen: screenPages,
     ///url
     url: ?[]const u8,
+    //req body
+    body: []const u8,
     /// textinput
     textInput: TextInput,
     ///scrollView
-    scrollView: ScrollView,
+    textView: TextView,
     pub fn init(allocator: std.mem.Allocator) !MyApp {
         const vx = try vaxis.init(allocator, .{});
         const textInput = TextInput.init(allocator, &vx.unicode);
@@ -71,7 +73,8 @@ pub const MyApp = struct {
             .currentScreen = screenPages.Main,
             .url = null,
             .textInput = textInput,
-            .scrollView = undefined,
+            .textView = undefined,
+            .body = "",
         };
     }
 
@@ -184,6 +187,8 @@ pub const MyApp = struct {
             try req.send();
             try req.finish();
             try req.wait();
+            const body = try req.reader().readAllAlloc(self.allocator, 1024 * 80);
+            self.body = body;
         } else {
             try self.vx.notify(self.tty.anyWriter(), "Url missing error", "please check the url");
         }
@@ -236,18 +241,8 @@ pub const MyApp = struct {
         if (self.currentScreen == screenPages.Get) {
             const tittle = "GET SCREEN";
             const msg = "URL: ";
-
-            // Window is a bounded area with a view to the screen. You cannot draw outside of a windows
-            // bounds. They are light structures, not intended to be stored.
             const win = self.vx.window();
-
-            // Clearing the window has the effect of setting each cell to it's "default" state. Vaxis
-            // applications typically will be immediate mode, and you will redraw your entire
-            // application during the draw cycle.
             win.clear();
-
-            // In addition to clearing our window, we want to clear the mouse shape state since we may
-            // be changing that as well
             self.vx.setMouseShape(.default);
 
             const textChild = win.child(.{
@@ -255,6 +250,18 @@ pub const MyApp = struct {
                 .y_off = 0,
                 .width = .{ .limit = 70 },
                 .height = .{ .limit = 3 },
+                .border = .{
+                    .where = .all,
+                    //pls zls
+                    .style = vaxis.Style{ .fg = vaxis.Color.rgbFromUint(color.pine) },
+                },
+            });
+
+            const reqBodyChild = win.child(.{
+                .x_off = win.width / 2 - 35,
+                .y_off = 0,
+                .width = .{ .limit = 70 },
+                .height = .{ .limit = 70 },
                 .border = .{
                     .where = .all,
                     //pls zls
@@ -270,6 +277,9 @@ pub const MyApp = struct {
             });
             self.textInput.draw(textChild);
             _ = try msgChild.printSegment(.{ .text = msg, .style = .{
+                .fg = vaxis.Color.rgbFromUint(color.gold),
+            } }, .{});
+            _ = try reqBodyChild.printSegment(.{ .text = self.body, .style = .{
                 .fg = vaxis.Color.rgbFromUint(color.gold),
             } }, .{});
             self.vx.setTitle(self.tty.anyWriter(), tittle) catch return;
