@@ -11,9 +11,11 @@ pub fn main() !void {
         }
     }
     const allocator = gpa.allocator();
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
 
     // Initialize our application
-    var app = try pw.MyApp.init(allocator);
+    var app = try pw.MyApp.init(arena.allocator());
     defer app.deinit();
 
     // Run the application

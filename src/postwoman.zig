@@ -51,7 +51,7 @@ pub const MyApp = struct {
     /// currentScreen the user is on
     currentScreen: screenPages,
     ///url
-    url: ?[]const u8,
+    url: []const u8,
     //req body
     body: []const u8,
     /// textinput
@@ -68,22 +68,14 @@ pub const MyApp = struct {
             .vx = vx,
             .mouse = null,
             .currentScreen = screenPages.Main,
-            .url = null,
+            .url = undefined,
             .textInput = textInput,
             .body = "",
         };
     }
 
     pub fn deinit(self: *MyApp) void {
-        // Deinit takes an optional allocator. You can choose to pass an allocator to clean up
-        // memory, or pass null if your application is shutting down and let the OS clean up the
-        // memory
-        if (self.url) |url| {
-            self.allocator.free(url);
-        }
         self.vx.deinit(self.allocator, self.tty.anyWriter());
-        self.tty.deinit();
-        self.textInput.deinit();
     }
 
     pub fn run(self: *MyApp) !void {
@@ -172,29 +164,35 @@ pub const MyApp = struct {
     }
 
     //get request handler
-    fn get(self: *MyApp) !void {
-        self.url = try self.textInput.toOwnedSlice();
-        if (self.url) |url| {
-            const uri = std.Uri.parse(url) catch |err| {
-                try self.vx.notify(self.tty.anyWriter(), "Uri parsing error", "please check the url");
-                std.debug.print("{}", .{err});
-                return;
-            };
-            var client = std.http.Client{ .allocator = self.allocator };
-            defer client.deinit();
-            const serverHeadBuffer = try self.allocator.alloc(u8, 1024 * 8);
-            defer self.allocator.free(serverHeadBuffer);
+    pub fn get(self: *MyApp) !void {
+        // Use a local variable to store the URL slice
+        const url = try self.textInput.toOwnedSlice();
+        defer self.allocator.free(url); // Ensure we free the slice after use
 
-            var req = try client.open(.GET, uri, .{ .server_header_buffer = serverHeadBuffer });
-            defer req.deinit();
-            try req.send();
-            try req.finish();
-            try req.wait();
-            const body = try req.reader().readAllAlloc(self.allocator, 1024 * 80);
-            self.body = body;
-        } else {
-            try self.vx.notify(self.tty.anyWriter(), "Url missing error", "please check the url");
-        }
+        // Update self.url with a copy of the slice if needed
+        self.url = try self.allocator.dupe(u8, url);
+
+        const uri = std.Uri.parse(self.url) catch |err| {
+            try self.vx.notify(self.tty.anyWriter(), "Uri parsing error", "please check the url");
+            std.debug.print("{}", .{err});
+            return;
+        };
+
+        var client = std.http.Client{ .allocator = self.allocator };
+        defer client.deinit();
+        const serverHeadBuffer = try self.allocator.alloc(u8, 1024 * 8);
+        defer self.allocator.free(serverHeadBuffer);
+
+        var req = try client.open(.GET, uri, .{ .server_header_buffer = serverHeadBuffer });
+        defer req.deinit();
+        try req.send();
+        try req.finish();
+        try req.wait();
+        const body = try req.reader().readAllAlloc(self.allocator, 1024 * 80);
+        defer self.allocator.free(body);
+
+        // Create a copy of the body to store in self.body
+        self.body = try self.allocator.dupe(u8, body);
     }
     /// Draw our current state
     pub fn draw(self: *MyApp) void {
@@ -206,7 +204,7 @@ pub const MyApp = struct {
             // Window is a bounded area with a view to the screen. You cannot draw outside of a windows
             // bounds. They are light structures, not intended to be stored.
             const win = self.vx.window();
-
+            win.hideCursor();
             // Clearing the window has the effect of setting each cell to it's "default" state. Vaxis
             // applications typically will be immediate mode, and you will redraw your entire
             // application during the draw cycle.
@@ -215,7 +213,6 @@ pub const MyApp = struct {
             // In addition to clearing our window, we want to clear the mouse shape state since we may
             // be changing that as well
             self.vx.setMouseShape(.default);
-
             const child = win.child(.{
                 .x_off = (win.width / 2) - 7,
                 .y_off = win.height / 2 + 1,
